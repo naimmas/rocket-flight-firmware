@@ -1,4 +1,4 @@
-Rocket fligh computer firmware 
+Rocket flight computer firmware 
 - Two pressure sensors
 - Accelerometer sensor
 - GPS sensor
