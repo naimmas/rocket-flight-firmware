@@ -45,27 +45,28 @@
 void initUART();
 void initPeriph();
 void initPins();
-void getLoraConfig();
-void printParameters(struct Configuration configuration);
-void readPressure();
-void readGPS();
-void calibratePressure();
-void SD_write(String input);
-void veriPaketiOlustur();
-void veriPaketiGonder();
-bool checkEmerg();
 void initFilters();
+bool checkEmerg();
 void emergInit();
+void calibratePressure();
+void readPressure(bool wAltitude);
+void readGPS();
 void readAcc();
 void calcAlt();
+void getLoraConfig();
+void printParameters(struct Configuration configuration);
+void veriPaketiOlustur();
+void veriPaketiGonder();
+void SD_write(String input);
 //  Lora E32
 //  GPS neo6m x2
 //  MPL 3115A2
 //  BME280
 //  SDcard
-// todo +-IMU
+//  IMU
 // 1500m parachute
 // telemtri roket -> basinc ivme gps, faydali yuk -> gps
+
 template <int order> // order is 1 or 2
 class LowPass
 {
@@ -256,7 +257,7 @@ void loop()
 {
   if (millis() - sensorTimer > 10)
   {
-    readPressure();
+    readPressure(true);
     readAcc();
     calcAlt();
     sensorTimer = millis();
@@ -344,7 +345,7 @@ void loop()
   }
 }
 
-void readPressure()
+void readPressure(bool wAltitude)
 {
   if (FezaRoketSistemi.donanimDurumu.basincBME280 == true)
   {
@@ -366,6 +367,25 @@ void readPressure()
    
     FezaRoketSistemi.basincSensoru_MPL.mutlakBasinc_hpa = abs(FezaRoketSistemi.basincSensoru_MPL.yerBasinci_hpa - FezaRoketSistemi.basincSensoru_MPL.basinc_hpa);
     FezaRoketSistemi.basincSensoru_MPL.mutlakYukseklik_m = abs(FezaRoketSistemi.basincSensoru_MPL.yukseklik_m - FezaRoketSistemi.basincSensoru_MPL.yerYuksekligi_m);
+  }
+  if(!wAltitude) return;
+
+  if(FezaRoketSistemi.basincSensoru_BME.veriGecerliMi && FezaRoketSistemi.basincSensoru_MPL.veriGecerliMi)
+  {
+    float yukseklik = FezaRoketSistemi.basincSensoru_BME.mutlakYukseklik_m * 0.4 + FezaRoketSistemi.basincSensoru_MPL.mutlakYukseklik_m * 0.6;
+    yukseklik *= 100.0f;
+    FezaRoketSistemi.kalmanParam.yukseklik_cm = EMA_Alt.filter(yukseklik);
+  }
+  else if(FezaRoketSistemi.basincSensoru_BME.veriGecerliMi)
+  {
+    float yukseklik = FezaRoketSistemi.basincSensoru_BME.mutlakYukseklik_m;
+    yukseklik *= 100.0f;
+    FezaRoketSistemi.kalmanParam.yukseklik_cm = EMA_Alt.filter(yukseklik);
+  }
+  else{
+    float yukseklik = FezaRoketSistemi.basincSensoru_MPL.mutlakYukseklik_m;
+    yukseklik *= 100.0f;
+    FezaRoketSistemi.kalmanParam.yukseklik_cm = EMA_Alt.filter(yukseklik);
   }
 }
 void readGPS()
@@ -413,42 +433,8 @@ void readAcc()
   FezaRoketSistemi.ivmeolcerSensoru.az = az;
   FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu = (ax+ay+az)<0; //toplam ivme sifirdan kucukse sart ifades true=1 olur ve bu da define edilen ivme yonu asagiya denk gelmektedir
 }
-void calibratePressure()
-{
-  float basinc1_temp = 0, basinc2_temp = 0, yukseklik1_temp = 0, yukseklik2_temp = 0;
-  delay(5000);
-  for (size_t i = 0; i < CLAIBRATION_LOOP; i++)
-  {
-    readPressure();
-    basinc1_temp += FezaRoketSistemi.basincSensoru_BME.basinc_hpa;
-    basinc2_temp += FezaRoketSistemi.basincSensoru_MPL.basinc_hpa;
-    yukseklik1_temp += FezaRoketSistemi.basincSensoru_BME.yukseklik_m;
-    yukseklik2_temp += FezaRoketSistemi.basincSensoru_MPL.yukseklik_m;
-  }
-  FezaRoketSistemi.basincSensoru_BME.yerBasinci_hpa = basinc1_temp / CLAIBRATION_LOOP;
-  FezaRoketSistemi.basincSensoru_BME.yerYuksekligi_m = yukseklik1_temp / CLAIBRATION_LOOP;
-  FezaRoketSistemi.basincSensoru_MPL.yerBasinci_hpa = basinc2_temp / CLAIBRATION_LOOP;
-  FezaRoketSistemi.basincSensoru_MPL.yerYuksekligi_m = yukseklik2_temp / CLAIBRATION_LOOP;
-}
 void calcAlt()
 {
-  if(FezaRoketSistemi.basincSensoru_BME.veriGecerliMi && FezaRoketSistemi.basincSensoru_MPL.veriGecerliMi)
-  {
-    float yukseklik = FezaRoketSistemi.basincSensoru_BME.mutlakYukseklik_m * 0.4 + FezaRoketSistemi.basincSensoru_MPL.mutlakYukseklik_m * 0.6;
-    yukseklik *= 100.0f;
-    FezaRoketSistemi.kalmanParam.yukseklik_cm = EMA_Alt.filter(yukseklik);
-  }
-  else if(FezaRoketSistemi.basincSensoru_BME.veriGecerliMi)
-  {
-    float yukseklik = FezaRoketSistemi.basincSensoru_BME.mutlakYukseklik_m;
-    yukseklik *= 100.0f;
-    FezaRoketSistemi.kalmanParam.yukseklik_cm = EMA_Alt.filter(yukseklik);
-  }
-  else{
-    float yukseklik = FezaRoketSistemi.basincSensoru_MPL.mutlakYukseklik_m;
-    yukseklik *= 100.0f;
-    FezaRoketSistemi.kalmanParam.yukseklik_cm = EMA_Alt.filter(yukseklik);
-  }
   FezaRoketSistemi.kalmanParam.ivme_cm_s2 = FezaRoketSistemi.ivmeolcerSensoru.compAcc * 100.0f; //assuming acceleration in m/s/s
   kalmanFilter4d_predict((micros()-FezaRoketSistemi.kalmanParam.timeStamp) / 1000000.0f);
   float kf_yukseklik_cm, kf_hiz_cm_s;
@@ -466,6 +452,25 @@ void calcAlt()
   // Serial.print("\tHIZ cm/s: ");Serial.println(FezaRoketSistemi.kalmanParam.kf_out_hiz_m_s);
   Serial.print("************************************\n");
 }
+void calibratePressure()
+{
+  float basinc1_temp = 0, basinc2_temp = 0, yukseklik1_temp = 0, yukseklik2_temp = 0;
+  delay(5000);
+  for (size_t i = 0; i < CLAIBRATION_LOOP; i++)
+  {
+    readPressure(false);
+    basinc1_temp += FezaRoketSistemi.basincSensoru_BME.basinc_hpa;
+    basinc2_temp += FezaRoketSistemi.basincSensoru_MPL.basinc_hpa;
+    yukseklik1_temp += FezaRoketSistemi.basincSensoru_BME.yukseklik_m;
+    yukseklik2_temp += FezaRoketSistemi.basincSensoru_MPL.yukseklik_m;
+  }
+  FezaRoketSistemi.basincSensoru_BME.yerBasinci_hpa = basinc1_temp / CLAIBRATION_LOOP;
+  FezaRoketSistemi.basincSensoru_BME.yerYuksekligi_m = yukseklik1_temp / CLAIBRATION_LOOP;
+  FezaRoketSistemi.basincSensoru_MPL.yerBasinci_hpa = basinc2_temp / CLAIBRATION_LOOP;
+  FezaRoketSistemi.basincSensoru_MPL.yerYuksekligi_m = yukseklik2_temp / CLAIBRATION_LOOP;
+}
+
+
 void initUART()
 {
   /*
@@ -617,6 +622,7 @@ void initFilters()
 {
   kalmanFilter4d_configure(1000.0f * KF_ACCELBIAS_VARIANCE, KF_ADAPT, FezaRoketSistemi.kalmanParam.yukseklik_cm, 0.0f, 0.0f);
 }
+
 bool checkEmerg()
 {
   uint8_t eepromVal = EEPROM.read(EEPROM_ADDR);
@@ -656,7 +662,6 @@ void getLoraConfig()
   c.close();
   cMi.close();
 }
-
 void printParameters(struct Configuration configuration)
 {
   Serial.println("----------------------------------------");
