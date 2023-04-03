@@ -8,6 +8,7 @@
 #include "kalmanfilter4d.h"
 #include <Ewma.h>
 
+// todo Buzzer eklenecek
 #define PIN_BME280_SPI_CS 15
 #define PIN_SDCARD_SPI_CS 15
 // #define PIN_LORA_TX
@@ -17,7 +18,7 @@
 #define PIN_LORA_M0 1
 #define PIN_LORA_M1 1
 
-#define GPS_BAUD 9600
+#define GPS_BAUD 9600 // yada 115200
 #define GPS_DEAD_TIME 100
 #define CLAIBRATION_LOOP 200
 
@@ -25,8 +26,8 @@
 #define LORA_ADDL 0X00
 #define LORA_CHN 0X00
 
-#define EEPROM_ADDR 1
 
+#define EEPROM_ADDR 1
 #define BASINC_MIN    700.0f
 #define BASINC_MAX    1100.0f
 #define SICAKLIK_MIN  0.0f
@@ -68,6 +69,7 @@ void SD_write(String input);
 // 1500m parachute
 // telemtri roket -> basinc ivme gps, faydali yuk -> gps
 
+/* Alcak geciren filtre */
 template <int order> // order is 1 or 2
 class LowPass
 {
@@ -303,17 +305,16 @@ void loop()
          FezaRoketSistemi.roketDurumu = ROKET_APOGEE;
          break;
         }
-        else if(millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > 2.0*FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms && (FezaRoketSistemi.ivmeolcerSensoru.compAcc < 5.0) && FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m<FezaRoketSistemi.apogeeVerisi.max_yukseklik){
+        else if(millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > 2.0*FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms && /*(FezaRoketSistemi.ivmeolcerSensoru.compAcc < 5.0) &&*/ FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m<FezaRoketSistemi.apogeeVerisi.max_yukseklik){
           FezaRoketSistemi.roketDurumu = ROKET_BALISTIK;
           break;
         }
-        // todo balistik dusme konrolu
+        
       }
       break;
     }
     case ROKET_APOGEE:
     {
-      // todo balistik dusme kontrolu eger parasut ilk tetiklemede acilmazsa balistik durumuna gec
       if(FezaRoketSistemi.apogeeVerisi.apogee_ok == false)
       {
         FezaRoketSistemi.apogeeVerisi.apogee_ok = true;
