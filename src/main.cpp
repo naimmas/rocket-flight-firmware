@@ -47,7 +47,6 @@ void initPeriph();
 void initPins();
 void initFilters();
 bool checkEmerg();
-void emergInit();
 void calibratePressure();
 void readPressure(bool wAltitude);
 void readGPS();
@@ -237,10 +236,10 @@ unsigned long sensorTimer = millis();
 
 void setup()
 {
-  if(checkEmerg())
-    {
-      // todo emergInit();
-    }
+  // if(checkEmerg())
+  //   {
+  //     // todo emergInit();
+  //   }
   else
   {
     initUART();
@@ -299,12 +298,11 @@ void loop()
           FezaRoketSistemi.apogeeVerisi.yukseklik_time = millis();
           FezaRoketSistemi.apogeeVerisi.timer_aktif = true;
         }
-        else if((millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms) && ((-5.0<topIvme && topIvme<5.0) || (FezaRoketSistemi.ivmeolcerSensoru.compAcc<APOGEE_IVME_ESIGI && FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu==IVMELENME_ASAGI)))
+        else if((millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms) && ((-5.0<topIvme && topIvme<5.0) || (FezaRoketSistemi.ivmeolcerSensoru.compAcc>APOGEE_IVME_ESIGI && FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu==IVMELENME_ASAGI)))
         {
          digitalWrite(PINO_TETIKLEME, HIGH);
          delay(1000);
          digitalWrite(PINO_TETIKLEME, LOW);
-         
          FezaRoketSistemi.roketDurumu = ROKET_APOGEE;
          break;
         }
@@ -333,7 +331,6 @@ void loop()
       digitalWrite(PINO_TETIKLEME, HIGH);
       delay(2000);
       digitalWrite(PINO_TETIKLEME, LOW);
-      // todo roket dusme kontrolu eger balistik devam ederse bir kac defa barutu tetiklemeye calis olmazsa inise gec
       FezaRoketSistemi.roketDurumu = ROKET_INIS;
       break;
     }
