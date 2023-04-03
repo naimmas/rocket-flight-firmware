@@ -5,7 +5,6 @@
 #include <TinyGPSPlus.h>
 #include <LoRa_E32.h>
 #include <SD.h>
-#include <EEPROM.h>
 #include "kalmanfilter4d.h"
 #include <Ewma.h>
 
@@ -33,6 +32,7 @@
 #define SICAKLIK_MIN  0.0f
 #define SICAKLIK_MAX  40.0f
 
+// ! Tekrar gozden gecirilmeli
 #define ATESLEME_IVME_ESIGI       9.8f
 #define ATESLEME_YUKSEKLIK_ESIGI  10.0f
 #define APOGEE_IVME_ESIGI         5.0f
@@ -46,8 +46,8 @@ void initUART();
 void initPeriph();
 void initPins();
 void initFilters();
-bool checkEmerg();
-void emergInit();
+// bool checkEmerg();
+// void emergInit();
 void calibratePressure();
 void readPressure(bool wAltitude);
 void readGPS();
@@ -58,6 +58,7 @@ void printParameters(struct Configuration configuration);
 void veriPaketiOlustur();
 void veriPaketiGonder();
 void SD_write(String input);
+
 //  Lora E32
 //  GPS neo6m x2
 //  MPL 3115A2
@@ -237,19 +238,12 @@ unsigned long sensorTimer = millis();
 
 void setup()
 {
-  if(checkEmerg())
-    {
-      // todo emergInit();
-    }
-  else
-  {
-    initUART();
-    initPeriph();
-    initPins();
-    initFilters();
-    calibratePressure();
-    FezaRoketSistemi.roketDurumu = ROKET_YERDE;
-  }
+  initUART();
+  initPeriph();
+  initPins();
+  initFilters();
+  calibratePressure();
+  FezaRoketSistemi.roketDurumu = ROKET_YERDE;
   FezaRoketSistemi.kalmanParam.timeStamp = micros();
 }
 
@@ -262,7 +256,7 @@ void loop()
     calcAlt();
     sensorTimer = millis();
   }
-  if (millis() - gpsTimer > 500)
+  if (millis() - gpsTimer > 250)
   {
     readGPS();
     gpsTimer = millis();
@@ -280,14 +274,13 @@ void loop()
       if(FezaRoketSistemi.ivmeolcerSensoru.compAcc>=ATESLEME_IVME_ESIGI && FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m>=ATESLEME_YUKSEKLIK_ESIGI)
       {
         FezaRoketSistemi.roketDurumu = ROKET_ATESLENDI;
-        EEPROM.write(EEPROM_ADDR, 1);
+        // EEPROM.write(EEPROM_ADDR, 1);
         break;
       }
     }
     case ROKET_ATESLENDI:
     {
-      // todo apogeeKontrol();
-      if((FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m>FezaRoketSistemi.apogeeVerisi.max_yukseklik * 1.20) && FezaRoketSistemi.ivmeolcerSensoru.compAcc > ATESLEME_IVME_ESIGI && FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu==IVMELENME_YUKARI)
+      if((FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m>FezaRoketSistemi.apogeeVerisi.max_yukseklik * 1.08) /* && FezaRoketSistemi.ivmeolcerSensoru.compAcc > ATESLEME_IVME_ESIGI && FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu==IVMELENME_YUKARI*/)
       {
         FezaRoketSistemi.apogeeVerisi.max_yukseklik = FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m;
         FezaRoketSistemi.apogeeVerisi.timer_aktif = false;
@@ -299,14 +292,20 @@ void loop()
           FezaRoketSistemi.apogeeVerisi.yukseklik_time = millis();
           FezaRoketSistemi.apogeeVerisi.timer_aktif = true;
         }
-        else if((millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms) && ((-5.0<topIvme && topIvme<5.0) || (FezaRoketSistemi.ivmeolcerSensoru.compAcc<APOGEE_IVME_ESIGI && FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu==IVMELENME_ASAGI)))
+
+        // ! Roket apogee'de iken ve serbest dusmede iken ivmelenme sinirlari hesaplanmali ve sart ifadesi ona gore guncellenmeli
+        else if((millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms) && ((-5.0<topIvme && topIvme<5.0) /*|| (FezaRoketSistemi.ivmeolcerSensoru.compAcc<APOGEE_IVME_ESIGI && FezaRoketSistemi.ivmeolcerSensoru.ivmelenmeYonu==IVMELENME_ASAGI)*/))
         {
          digitalWrite(PINO_TETIKLEME, HIGH);
          delay(1000);
          digitalWrite(PINO_TETIKLEME, LOW);
-         
+         delay(1000);
          FezaRoketSistemi.roketDurumu = ROKET_APOGEE;
          break;
+        }
+        else if(millis() - FezaRoketSistemi.apogeeVerisi.yukseklik_time > 2.0*FezaRoketSistemi.apogeeVerisi.apogee_suresi_ms && (FezaRoketSistemi.ivmeolcerSensoru.compAcc < 5.0) && FezaRoketSistemi.kalmanParam.kf_out_yukseklik_m<FezaRoketSistemi.apogeeVerisi.max_yukseklik){
+          FezaRoketSistemi.roketDurumu = ROKET_BALISTIK;
+          break;
         }
         // todo balistik dusme konrolu
       }
@@ -318,7 +317,7 @@ void loop()
       if(FezaRoketSistemi.apogeeVerisi.apogee_ok == false)
       {
         FezaRoketSistemi.apogeeVerisi.apogee_ok = true;
-        EEPROM.write(EEPROM_ADDR, 2);
+        // EEPROM.write(EEPROM_ADDR, 2);
         FezaRoketSistemi.roketDurumu = ROKET_INIS;
       }
       break;
@@ -339,7 +338,10 @@ void loop()
     }
     case ROKET_INIS:
     {
-
+      if(abs(FezaRoketSistemi.basincSensoru_BME.yukseklik_m - FezaRoketSistemi.basincSensoru_BME.yerYuksekligi_m) <= 5.0 || abs(FezaRoketSistemi.basincSensoru_MPL.yukseklik_m - FezaRoketSistemi.basincSensoru_MPL.yerYuksekligi_m) <= 5.0)
+      {
+        // Roket yerde
+      }
       break;
     }
   }
@@ -623,6 +625,7 @@ void initFilters()
   kalmanFilter4d_configure(1000.0f * KF_ACCELBIAS_VARIANCE, KF_ADAPT, FezaRoketSistemi.kalmanParam.yukseklik_cm, 0.0f, 0.0f);
 }
 
+/*
 bool checkEmerg()
 {
   uint8_t eepromVal = EEPROM.read(EEPROM_ADDR);
@@ -640,7 +643,7 @@ bool checkEmerg()
   }
   return true;
 }
-
+*/
 void getLoraConfig()
 {
   ResponseStructContainer c;
