@@ -7,9 +7,11 @@
 #include <SD.h>
 #include "kalmanfilter4d.h"
 #include <Ewma.h>
+#include <Adafruit_ADXL345_U.h>
+#include <Adafruit_Sensor.h>
 
 // todo Buzzer eklenecek
-#define PIN_BME280_SPI_CS 15
+#define PIN_BME280_SPI_CS 13
 #define PIN_SDCARD_SPI_CS 15
 // #define PIN_LORA_TX
 // #define PIN_LORA_RX
@@ -155,6 +157,7 @@ TinyGPSPlus gps;
 Adafruit_BME280 basinc_bme280(PIN_BME280_SPI_CS);
 Adafruit_MPL3115A2 basinc_mpl31;
 LoRa_E32 lora(Serial3, PIN_LORA_AUX, PIN_LORA_M0, PIN_LORA_M1, UART_BPS_RATE_115200);
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified();
 
 // LowPass<2> LP_Altitude(1e2, 1e3, true);
 // LowPass<2> LP_Press(1e2, 1e3, true);
@@ -240,6 +243,17 @@ unsigned long sensorTimer = millis();
 
 void setup()
 {
+  Serial.begin(115200);
+  Serial.println("Hello");
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no ADXL345 detected ... Check your wiring!");
+    while(1);
+  }
+  else{
+    Serial.println("ADXL ivme OK");
+  }
   initUART();
   initPeriph();
   initPins();
@@ -496,7 +510,7 @@ void initUART()
   Serial.println("GPS Serial OK");
   Serial.print("GPS Plus library test -> ");
   Serial.println(_GPS_VERSION); // Hata verirse dogru GPS kutuphanesi eklenmemis demektir
-
+  return;
   /*
   *******************
   * LORA ayarlari *
@@ -541,6 +555,21 @@ void initUART()
 }
 void initPeriph()
 {
+   /*
+   *************************************
+   * ADXL345 IVME sensorunu baslatma *
+   *************************************
+  */
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no ADXL345 detected ... Check your wiring!");
+    while(1);
+  }
+  else{
+    Serial.println("ADXL ivme OK");
+  }
+  return;
   /*
    *********************************
    * BME basinc sensorunu baslatma *
